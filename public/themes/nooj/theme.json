@@ -1,0 +1,20 @@
+{
+  "name": "nooj",
+  "label": "Nooj 清新绿（默认推荐）",
+  "settings": [
+    {
+      "key": "home_posts",
+      "label": "首页文章卡片数（含头条）",
+      "type": "number",
+      "default": 7,
+      "min": 3,
+      "max": 12
+    },
+    {
+      "key": "show_moments",
+      "label": "显示「动态」入口",
+      "type": "switch",
+      "default": true
+    }
+  ]
+}

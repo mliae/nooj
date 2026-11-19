@@ -1,0 +1,27 @@
+{
+  "name": "nooj-log",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Nooj Log：代码与生活，皆有迹可循（Hono + SQLite 自托管博客）",
+  "scripts": {
+    "dev": "tsx watch src/platform/node-entry.ts",
+    "build": "node scripts/build.mjs",
+    "deploy": "node scripts/deploy.cjs",
+    "start": "node dist/server.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "better-sqlite3": "^12.2.0",
+    "hono": "^4.0.0",
+    "node-cron": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

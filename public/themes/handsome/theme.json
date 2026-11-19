@@ -1,0 +1,53 @@
+{
+  "name": "handsome",
+  "label": "Handsome 风",
+  "settings": [
+    {
+      "key": "accent",
+      "label": "主题色调",
+      "type": "select",
+      "options": [
+        { "value": "green", "label": "青绿（默认）" },
+        { "value": "blue", "label": "深蓝" },
+        { "value": "purple", "label": "紫色" },
+        { "value": "red", "label": "绯红" },
+        { "value": "orange", "label": "橙黄" }
+      ],
+      "default": "green"
+    },
+    {
+      "key": "home_posts",
+      "label": "首页每页文章数",
+      "type": "number",
+      "default": 8,
+      "min": 4,
+      "max": 20
+    },
+    {
+      "key": "sidebar_modules",
+      "label": "侧边栏模块",
+      "type": "checkboxes",
+      "options": [
+        { "value": "author", "label": "博主信息" },
+        { "value": "search", "label": "搜索" },
+        { "value": "recent", "label": "最新文章" },
+        { "value": "comments", "label": "最新评论" },
+        { "value": "links", "label": "友情链接" },
+        { "value": "photos", "label": "最新照片" }
+      ],
+      "default": ["author", "search", "recent", "comments", "links"]
+    },
+    {
+      "key": "show_moments",
+      "label": "显示「动态」导航入口",
+      "type": "switch",
+      "default": true
+    },
+    {
+      "key": "article_toc",
+      "label": "文章页显示目录",
+      "type": "switch",
+      "default": true
+    }
+  ]
+}
