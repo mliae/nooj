@@ -33,6 +33,8 @@ function loadEnv() {
   }
 }
 loadEnv();
+// gh 的 git credential helper 从 GH_TOKEN 读凭据，方便无交互 push
+if (!process.env.GH_TOKEN && process.env.GITHUB_TOKEN) process.env.GH_TOKEN = process.env.GITHUB_TOKEN;
 
 const SSH = {
   host: process.env.NOOJ_SSH_HOST || '',
