@@ -111,6 +111,10 @@
     b2_app_key: "",
     b2_domain: "",
     ai_reply_enabled: false,
+    ai_auto_reply: false,
+    ai_base_url: "",
+    ai_api_key: "",
+    ai_model: "",
     ai_bot_name: "小J",
     ai_bot_avatar: "",
     ai_text_model: "",
@@ -8836,29 +8840,60 @@
       return;
     }
     panel.innerHTML = `
-      <div class="admin-panel-head"><h3>评论 @AI 机器人</h3></div>
+      <div class="admin-panel-head"><h3>AI 助手</h3></div>
       <form class="settings-form" data-ai-settings-form style="max-width:680px">
+        <div class="field">
+          <label>AI 接口地址（OpenAI 兼容）<br /><small style="color:var(--anzhiyu-secondtext)">如 https://api.deepseek.com；留空则使用服务器 .env 配置的 AI_BASE_URL</small></label>
+          <input name="ai_base_url" maxlength="200" value="${esc(s.ai_base_url)}" placeholder="https://api.deepseek.com" />
+        </div>
+        <div class="field">
+          <label>API Key<br /><small style="color:var(--anzhiyu-secondtext)">留空则使用 .env 配置的 AI_API_KEY</small></label>
+          <input name="ai_api_key" type="password" maxlength="300" value="${esc(s.ai_api_key)}" placeholder="sk-..." autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" style="font-family:monospace" />
+        </div>
+        <div class="field">
+          <label>默认模型 ID<br /><small style="color:var(--anzhiyu-secondtext)">如 deepseek-chat；留空用 .env 的 AI_MODEL 或内置默认模型</small></label>
+          <input name="ai_model" maxlength="100" value="${esc(s.ai_model)}" placeholder="deepseek-chat" />
+        </div>
+        <div class="field">
+          <label>自定义覆盖模型（可选）<br /><small style="color:var(--anzhiyu-secondtext)">按次覆盖默认模型；留空=用上面的默认模型</small></label>
+          <input name="ai_text_model" maxlength="100" value="${esc(s.ai_text_model)}" placeholder="留空=默认" />
+        </div>
         <div class="field field-row">
-          <label for="ai_reply_enabled">启用评论 @AI 机器人<br /><small style="color:var(--anzhiyu-secondtext)">访客在说说/文章评论中 @机器人昵称 时，由 AI 自动生成回复，回复以楼中楼形式出现</small></label>
+          <label for="ai_reply_enabled">启用 AI 回复<br /><small style="color:var(--anzhiyu-secondtext)">开启后评论区具备 AI 回复能力（需已配置可用的接口）</small></label>
           <label class="toggle">
             <input type="checkbox" name="ai_reply_enabled" id="ai_reply_enabled" ${s.ai_reply_enabled ? "checked" : ""} />
             <span></span>
           </label>
         </div>
+        <div class="field field-row">
+          <label for="ai_auto_reply">自动回复所有评论<br /><small style="color:var(--anzhiyu-secondtext)">开启后访客每条评论 AI 都自动回复（结合文章/说说内容），无需 @ 机器人</small></label>
+          <label class="toggle">
+            <input type="checkbox" name="ai_auto_reply" id="ai_auto_reply" ${s.ai_auto_reply ? "checked" : ""} ${s.ai_reply_enabled ? "" : "disabled"} />
+            <span></span>
+          </label>
+        </div>
         <div class="field">
-          <label>机器人昵称<br /><small style="color:var(--anzhiyu-secondtext)">评论中 @此昵称 触发回复，建议 2-6 个字符（如 小J、阿沐）</small></label>
+          <label>机器人昵称<br /><small style="color:var(--anzhiyu-secondtext)">建议 2-6 个字符（如 小J、阿沐）</small></label>
           <input name="ai_bot_name" maxlength="20" value="${esc(s.ai_bot_name)}" placeholder="小J" />
         </div>
         <div class="field">
           <label>机器人头像<br /><small style="color:var(--anzhiyu-secondtext)">仅图片 URL；留空显示默认机器人图标</small></label>
-          <input name="ai_bot_avatar" maxlength="200" value="${esc(s.ai_bot_avatar)}" placeholder="https://...（留空=默认图标）" />
-        </div>
-        <div class="field">
-          <label>文本模型 ID（高级，可选）<br /><small style="color:var(--anzhiyu-secondtext)">留空时使用服务端 AI_MODEL 配置的默认模型；填入自定义模型 ID 可按次覆盖</small></label>
-          <input name="ai_text_model" maxlength="100" value="${esc(s.ai_text_model)}" placeholder="deepseek-chat（留空=默认）" />
+          <input name="ai_bot_avatar" maxlength="200" value="${esc(s.ai_bot_avatar)}" placeholder="https://..." />
         </div>
         <button class="btn primary" type="submit">保存 AI 设置</button>
       </form>`;
+    // 联动：关闭「启用 AI 回复」时禁用并取消「自动回复」
+    const aiFormEl = panel.querySelector("[data-ai-settings-form]");
+    if (aiFormEl) {
+      const en = aiFormEl.querySelector('[name="ai_reply_enabled"]');
+      const auto = aiFormEl.querySelector('[name="ai_auto_reply"]');
+      if (en && auto) {
+        en.addEventListener("change", () => {
+          auto.disabled = !en.checked;
+          if (!en.checked) auto.checked = false;
+        });
+      }
+    }
   }
 
   /* ---------- 后台 Tab：搜索收录 ---------- */
@@ -13075,6 +13110,10 @@
       const fd = new FormData(aiForm);
       const patch = {
         ai_reply_enabled: aiForm.querySelector('[name="ai_reply_enabled"]').checked,
+        ai_auto_reply: aiForm.querySelector('[name="ai_auto_reply"]').checked,
+        ai_base_url: String(fd.get("ai_base_url") || "").trim(),
+        ai_api_key: String(fd.get("ai_api_key") || "").trim(),
+        ai_model: String(fd.get("ai_model") || "").trim(),
         ai_bot_name: String(fd.get("ai_bot_name") || "").trim(),
         ai_bot_avatar: String(fd.get("ai_bot_avatar") || "").trim(),
         ai_text_model: String(fd.get("ai_text_model") || "").trim(),
@@ -13250,9 +13289,12 @@
       } else {
         updateArticleCommentCount(target.comment_count);
       }
-      // @机器人：提示并轻量轮询异步生成的 AI 回复
+      // AI 回复：@机器人 或开启自动回复时，提示并轻量轮询异步生成的 AI 回复
       const botName = state.settings.ai_bot_name || "小J";
-      if (state.settings?.ai_reply_enabled && content.includes(`@${botName}`)) {
+      const aiWillReply =
+        state.settings?.ai_reply_enabled &&
+        (state.settings?.ai_auto_reply || content.includes(`@${botName}`));
+      if (aiWillReply) {
         toast(t("comment.ai_called", { name: botName }));
         pollAiReplies(target);
       } else {
@@ -13449,7 +13491,7 @@
    * 后台页面由 SSR 强制默认 UI，不加载主题 CSS/JS；从后台硬加载页 SPA 导航到公共页时，
    * 这里负责动态补上主题 CSS 与 theme.js，保证主题视图可用。
    */
-  const THEME_ASSET_VERSION = "20261110nooj101";
+  const THEME_ASSET_VERSION = "20261125nooj102";
   let themeScriptLoading = null;
 
   function syncThemeAssets() {

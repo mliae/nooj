@@ -91,10 +91,14 @@ export interface SiteSettings {
   b2_app_key: string; // B2 Application Key（私密，不公开）
   b2_domain: string; // B2 公开访问域名（带 https://，如 https://b2.e.jce.me）；B2 桶需设为公开
   // AI 评论机器人
-  ai_reply_enabled: boolean; // 是否启用评论 @AI 自动回复（需在 .env 配置 AI 接口）
+  ai_reply_enabled: boolean; // 是否启用评论 AI 回复（接口地址可在后台或 .env 配置）
+  ai_auto_reply: boolean; // 自动回复：访客评论后 AI 自动回复，无需 @ 机器人
+  ai_base_url: string; // OpenAI 兼容接口地址（如 https://api.deepseek.com）；留空=用 .env 的 AI_BASE_URL
+  ai_api_key: string; // API Key（私密，不通过公开 API 下发）；留空=用 .env 的 AI_API_KEY
+  ai_model: string; // 默认文本模型 ID（如 deepseek-chat）；留空=用 .env 的 AI_MODEL 或内置默认
   ai_bot_name: string; // 机器人昵称（评论中 @此昵称 触发回复），默认「小J」
   ai_bot_avatar: string; // 机器人头像：仅图片 URL；空=lucide bot 占位图标
-  ai_text_model: string; // 自定义文本模型 ID；留空=内置默认模型
+  ai_text_model: string; // 自定义文本模型 ID（按次覆盖 ai_model）；留空=用 ai_model
   // QQ 昵称 API
   qq_nick_mode: string; // QQ 昵称获取方式：direct=腾讯直连 / apihz=apihz 接口 / fallback=逐个尝试（先腾讯后 apihz）
   apihz_id: string; // apihz 开发者 ID，留空=使用内置默认（88888888）
@@ -250,6 +254,10 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   b2_app_key: "",
   b2_domain: "",
   ai_reply_enabled: false,
+  ai_auto_reply: false,
+  ai_base_url: "",
+  ai_api_key: "",
+  ai_model: "",
   ai_bot_name: "小J",
   ai_bot_avatar: "",
   ai_text_model: "",
@@ -378,6 +386,9 @@ const STRING_LIMITS: Partial<Record<keyof SiteSettings, number>> = {
   b2_key_id: 100,
   b2_app_key: 200,
   b2_domain: 200,
+  ai_base_url: 200,
+  ai_api_key: 300,
+  ai_model: 100,
   ai_bot_name: 20,
   ai_bot_avatar: 200,
   ai_text_model: 100,
@@ -438,6 +449,7 @@ const BOOLEAN_KEYS: (keyof SiteSettings)[] = [
   "music_preload",
   "music_collapsed",
   "ai_reply_enabled",
+  "ai_auto_reply",
   "comments_enabled",
   "about_enabled",
   "links_enabled",

@@ -13,6 +13,7 @@ import { getSettings } from "../settings";
 import { parseLangs } from "../i18n";
 import { toTraditional, toEnglish, toEnglishShort } from "../translate";
 import { baiduToEnglish } from "../baidu-translate";
+import { resolveAi } from "../ai-resolver";
 
 const app = new Hono<HonoEnv>();
 
@@ -144,6 +145,7 @@ app.post("/", async c => {
       // 英文：优先百度翻译（国内直连、快且稳），任一失败回退 AI 接口
       const hasBaidu = !!(s.baidu_translate_appid && s.baidu_translate_key);
       engine = hasBaidu ? "baidu" : "ai";
+      const ai = resolveAi(c, s);
       /**
        * 单段中译英：百度 → AI 回退。
        * @param text 原文
@@ -160,8 +162,8 @@ app.post("/", async c => {
             engine = "ai";
           }
         }
-        if (!c.env.AI) throw new Error("AI binding unavailable");
-        return long ? toEnglish(c.env.AI, text) : toEnglishShort(c.env.AI, text);
+        if (!ai) throw new Error("AI binding unavailable");
+        return long ? toEnglish(ai, text) : toEnglishShort(ai, text);
       };
 
       if (aboutFields) {
