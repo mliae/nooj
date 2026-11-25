@@ -13491,7 +13491,7 @@
    * 后台页面由 SSR 强制默认 UI，不加载主题 CSS/JS；从后台硬加载页 SPA 导航到公共页时，
    * 这里负责动态补上主题 CSS 与 theme.js，保证主题视图可用。
    */
-  const THEME_ASSET_VERSION = "20261125nooj102";
+  const THEME_ASSET_VERSION = "20261125nooj103";
   let themeScriptLoading = null;
 
   function syncThemeAssets() {

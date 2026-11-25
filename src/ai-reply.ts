@@ -15,13 +15,32 @@
 import type { Context } from "hono";
 import type { HonoEnv } from "./types";
 import type { CommentRow } from "./db";
-import type { AiBinding } from "./ai";
+import type { AiBinding, ChatMessage } from "./ai";
 import { getSettings } from "./settings";
 import { resolveAi } from "./ai-resolver";
-import { generateText, TEXT_MODEL, TEXT_MODEL_FALLBACK } from "./ai";
+import { generateText, cleanAiOutput, TEXT_MODEL, TEXT_MODEL_FALLBACK } from "./ai";
 
 /** 机器人回复内容上限（与用户评论一致 500 字） */
 const MAX_REPLY = 500;
+
+/**
+ * 从模型原始输出中提取干净的最终回复：
+ * 1. cleanAiOutput 取 <<<回复>>> 分隔符内容并剥 <think> 标签；
+ * 2. 启发式兜底：若仍残留推理引导段，取最后一个非推理、非列表的段落。
+ */
+function refineReply(raw: string): string {
+  let t = cleanAiOutput(raw);
+  if (!t) return "";
+  const paras = t.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (paras.length > 1) {
+    const reasonRe =
+      /^(首先|让我|我来|我需要|我将|我先|任务是|任务[:：]|上文|分析一下|分析|读者评论|评论是|结合上文|根据要求|下面是|回复要求|要求[:：]|步骤|思考|总结)/;
+    const clean = paras.filter(p => !reasonRe.test(p) && !/^\s*[-*]\s+/.test(p));
+    if (clean.length) t = clean[clean.length - 1];
+  }
+  t = t.replace(/^(?:回复|最终回复|我的回复|正式回复)[:：]\s*/, "").trim();
+  return t.slice(0, MAX_REPLY).trim();
+}
 
 /** 从 Markdown 提取纯文本摘要，用于给 AI 提供正文上下文 */
 function plainSnippet(md: string, max = 300): string {
@@ -113,29 +132,42 @@ async function generateAndSave(
 
     const siteTitle = s.site_title || "本站";
     const prompt = [
-      `你是轻博客「${siteTitle}」的 AI 助手「${botName}」，正在回复读者 ${comment.nickname} 的评论。`,
-      subject ? `上文（文章/说说）内容摘要：${subject}` : "",
+      `你是轻博客「${siteTitle}」的 AI 助手「${botName}」，正在回复读者评论。`,
+      subject ? `上文内容摘要：${subject}` : "",
       `读者评论：${userContent}`,
-      "请结合上文内容与读者评论，用友好、简洁、口语化的中文自然回复（不超过 200 字），可适当使用 emoji。",
-      "直接输出回复正文，不要加任何前缀、解释或引号。",
+      "请结合上文与读者评论，生成一句友好、简洁、口语化的中文回复（不超过 80 字，可适当用 emoji）。",
+      "严格要求：不要输出任何分析、推理过程、任务说明或分点计划；",
+      "把最终回复放在 <<<回复>>> 和 <<<结束>>> 两个标记之间，标记之外不要写任何字符。",
     ]
       .filter(Boolean)
       .join("\n");
 
     const model = (s.ai_text_model || "").trim() || (s.ai_model || "").trim() || TEXT_MODEL;
-    const genOpts = { maxTokens: 400, temperature: 0.7, thinking: false } as const;
+    // 回退：原生 Workers 绑定时用 Workers 备用模型；自定义 OpenAI 提供商则重试同一模型（429/5xx 多为瞬时）
+    const fallbackModel = c.env.AI === ai ? TEXT_MODEL_FALLBACK : model;
+    // 推理模型即使关闭推理也可能在内部消耗 token，给足预算避免最终回复被截断
+    const genOpts = { maxTokens: 1024, temperature: 0.7, thinking: false } as const;
+    const messages: ChatMessage[] = [{ role: "user", content: prompt }];
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    // 最多 3 次尝试：失败或清洗后为空都重试（推理模型偶发返回空 content / 供应商 429 限流），
+    // 第 1 次用主模型，第 2 次用回退模型，第 3 次再用主模型；每次重试前短暂退避
     let reply = "";
-    try {
-      reply = await generateText(ai, [{ role: "user", content: prompt }], { ...genOpts, model });
-    } catch (e) {
-      console.warn("[AI] primary model failed, fallback:", e instanceof Error ? e.message : e);
-      reply = await generateText(ai, [{ role: "user", content: prompt }], {
-        ...genOpts,
-        model: TEXT_MODEL_FALLBACK,
-      });
+    for (let attempt = 0; attempt < 3 && !reply; attempt++) {
+      if (attempt > 0) await sleep(1500);
+      const useModel = attempt === 1 ? fallbackModel : model;
+      let raw = "";
+      try {
+        raw = await generateText(ai, messages, { ...genOpts, model: useModel });
+      } catch (e) {
+        console.warn(`[AI] attempt ${attempt} (${useModel}) failed:`, e instanceof Error ? e.message : e);
+      }
+      reply = refineReply(raw);
+      if (!reply) console.warn(`[AI] attempt ${attempt} (${useModel}) empty reply, raw len:`, raw.length);
     }
-    reply = reply.slice(0, MAX_REPLY).trim();
-    if (!reply) return;
+    if (!reply) {
+      console.warn("[AI] giving up after 3 attempts, no usable reply");
+      return;
+    }
 
     // 头像只接受 http(s) 图片 URL
     const avatar = /^https?:\/\//i.test(s.ai_bot_avatar) ? s.ai_bot_avatar.slice(0, 300) : "";

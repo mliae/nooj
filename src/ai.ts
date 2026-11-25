@@ -43,10 +43,29 @@ export async function generateText(
     temperature: opts.temperature ?? 0.7,
   };
   if (opts.thinking === false) {
+    // 多供应商关闭推理：Workers/vLLM 识别 chat_template_kwargs，智谱识别 do_thinking，OpenAI 识别 reasoning_effort
     inputs.chat_template_kwargs = { enable_thinking: false };
+    inputs.do_thinking = false;
+    inputs.reasoning_effort = "low";
   }
   const result = await ai.run(opts.model ?? TEXT_MODEL, inputs);
-  return stripThinking(extractText(result)).trim();
+  return cleanAiOutput(extractText(result)).trim();
+}
+
+/**
+ * 清洗模型输出：推理模型（GLM-4.5 / DeepSeek-R1 / Qwen3-Thinking 等）会把思维链混进 content。
+ * 优先取 <<<回复>>>...<<<结束>>> 分隔符内的最终内容，再剥 <think> 标签与残留标记。
+ * 注意：模型常把分隔符的尖括号数量写错（如 <<<回复>> 少一个 >），故正则放宽匹配。
+ */
+export function cleanAiOutput(raw: string): string {
+  let t = (raw || "").trim();
+  if (!t) return "";
+  const delim = t.match(/<{2,}回复>{1,}([\s\S]*?)<{2,}结束>{1,}/);
+  if (delim) t = delim[1];
+  t = t.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "");
+  t = t.replace(/<think(?:ing)?>[\s\S]*$/i, "");
+  t = t.replace(/<{2,}\/?回复>{1,}/g, "").replace(/<{2,}结束>{1,}/g, "");
+  return t.trim();
 }
 
 /** 兼容多种文本返回结构：
@@ -71,12 +90,4 @@ function extractText(result: unknown): string {
   }
   if (typeof r.result === "string") return r.result;
   return "";
-}
-
-/** 剥离推理模型可能输出的 thinking 块 */
-function stripThinking(text: string): string {
-  return text
-    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "")
-    .replace(/^<think(?:ing)?>[\s\S]*$/i, "")
-    .trim();
 }
