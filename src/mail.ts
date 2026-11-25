@@ -330,8 +330,8 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
       templateData: {
         site,
         nickname: comment.nickname,
-        content: comment.content.slice(0, 300),
-        target: `${targetTypeLabel}「${targetLabel}」`,
+        // 模板只保留 site/nickname/content/path 四个变量，目标信息并入正文
+        content: `${targetTypeLabel}「${targetLabel}」：${comment.content}`.slice(0, 300),
         path: urlToPath(url),
       },
     });
