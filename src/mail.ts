@@ -179,6 +179,19 @@ function escHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * 完整 URL 转成相对路径：腾讯云模板审核要求链接域名写死，只允许路径部分用变量。
+ * 例：https://nooj.cn/post/abc#comments → post/abc#comments
+ */
+function urlToPath(u: string): string {
+  try {
+    const x = new URL(u);
+    return (x.pathname.replace(/^\/+/, "") + x.search + x.hash).replace(/^\/+/, "");
+  } catch {
+    return "";
+  }
+}
+
 /** 管理员新评论通知 */
 export function newCommentAdminHtml(opts: {
   site: string;
@@ -319,7 +332,7 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
         nickname: comment.nickname,
         content: comment.content.slice(0, 300),
         target: `${targetTypeLabel}「${targetLabel}」`,
-        url,
+        path: urlToPath(url),
       },
     });
   }
@@ -342,7 +355,7 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
             site,
             nickname: comment.nickname,
             content: comment.content.slice(0, 300),
-            url,
+            path: urlToPath(url),
           },
         });
       }
