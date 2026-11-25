@@ -132,10 +132,17 @@ async function sendViaTencent(opts: MailConfig & { subject: string; html: string
     },
     body: payload,
   });
-  if (!res.ok) return false;
+  if (!res.ok) {
+    console.warn(`[mail] 腾讯云 SES HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+    return false;
+  }
   // 腾讯云即使 HTTP 200 也可能在 Response.Error 里返回业务错误
-  const j = (await res.json().catch(() => null)) as { Response?: { Error?: unknown } } | null;
-  return !!(j?.Response && !j.Response.Error);
+  const j = (await res.json().catch(() => null)) as { Response?: { Error?: { Code?: string; Message?: string } } } | null;
+  if (j?.Response?.Error) {
+    console.warn(`[mail] 腾讯云 SES 返回错误: ${j.Response.Error.Code} ${j.Response.Error.Message}`);
+    return false;
+  }
+  return !!j?.Response;
 }
 
 /** 通用中文邮件 HTML 外壳 */
