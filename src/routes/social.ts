@@ -18,7 +18,7 @@ import { maybeScheduleAiReply } from "../ai-reply";
 import { getSettings } from "../settings";
 import { canonicalOrigin } from "../seo";
 import { ensureAvatar } from "../avatar";
-import { handleCommentMailNotifications } from "../mail";
+import { handleCommentMailNotifications, mailConfigFrom } from "../mail";
 
 const app = new Hono<HonoEnv>();
 
@@ -127,14 +127,7 @@ app.post("/:id/comments", async c => {
   const origin = canonicalOrigin(s.site_domain, c.req.url, c.req.header("x-forwarded-proto"));
   c.executionCtx.waitUntil(
     handleCommentMailNotifications({
-      mail: {
-        enabled: s.mail_enabled,
-        apiKey: s.mail_resend_key,
-        from: s.mail_from,
-        adminTo: s.mail_admin_to,
-        notifyAdmin: s.mail_notify_admin,
-        replyNotify: s.mail_reply_notify,
-      },
+      mail: mailConfigFrom(s),
       db: c.env.DB,
       notifySettings: s,
       site: s.site_title || "Nooj Log",

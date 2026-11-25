@@ -20,7 +20,7 @@ import { keyToSrc } from "../db";
 import { getSettings, updateSettings, normalizeAdminPath } from "../settings";
 import { canonicalOrigin } from "../seo";
 import { createComment, deleteCommentAnywhere, editCommentAnywhere } from "../comment-service";
-import { handleCommentMailNotifications } from "../mail";
+import { handleCommentMailNotifications, mailConfigFrom } from "../mail";
 import { ensureAvatar } from "../avatar";
 import { putObject, testB2Storage, testR2Storage, storagePrefix } from "../storage";
 
@@ -599,14 +599,7 @@ app.post("/comments/:cid/reply", requireAdmin, async c => {
           targetLabel = (m?.content ?? "").replace(/\s+/g, " ").slice(0, 60) || targetLabel;
         }
         await handleCommentMailNotifications({
-          mail: {
-            enabled: s.mail_enabled,
-            apiKey: s.mail_resend_key,
-            from: s.mail_from,
-            adminTo: s.mail_admin_to,
-            notifyAdmin: false, // 博主自己回复，不通知管理员
-            replyNotify: s.mail_reply_notify,
-          },
+          mail: mailConfigFrom(s, { notifyAdmin: false }), // 博主自己回复，不通知管理员
           db: c.env.DB,
           site: s.site_title || "Nooj Log",
           comment: result.comment,

@@ -7292,22 +7292,39 @@
       cmtRows[cmtRows.length - 1].__close = true;
     }
     panel.innerHTML = `
-      <div class="admin-panel-head"><h3>邮件通知设置（Resend）</h3></div>
+      <div class="admin-panel-head"><h3>邮件通知设置</h3></div>
       <form class="settings-form" data-mail-settings-form style="max-width:680px">
         <div class="field">
           <label class="switch-row">
             <span class="toggle"><input type="checkbox" name="mail_enabled" ${s.mail_enabled ? "checked" : ""} /><span></span></span>
             启用评论邮件通知
           </label>
-          <small style="color:var(--anzhiyu-secondtext)">新评论时给管理员发邮件；评论者勾选订阅后，被回复时也会收到邮件。发送走 Resend，免费额度 3000 封/月。</small>
+          <small style="color:var(--anzhiyu-secondtext)">新评论时给管理员发邮件；评论者勾选订阅后，被回复时也会收到邮件。国内收件建议用腾讯云 SES（1000 封免费额度、国内 IP 投递更快）；Resend 免费 3000 封/月但服务器在海外，投递偏慢。</small>
         </div>
         <div class="field">
+          <label>邮件服务商</label>
+          <select name="mail_provider">
+            <option value="tencent" ${s.mail_provider !== "resend" ? "selected" : ""}>腾讯云 SES（国内推荐）</option>
+            <option value="resend" ${s.mail_provider === "resend" ? "selected" : ""}>Resend（海外）</option>
+          </select>
+        </div>
+        <div class="field" style="border:1px solid var(--anzhiyu-card-border,#e6e2d6);border-radius:8px;padding:12px">
+          <label>腾讯云 SecretId</label>
+          <input name="mail_tencent_id" maxlength="100" value="${escA(s.mail_tencent_id)}" placeholder="AKIDxxxxxxxx" autocomplete="off" data-lpignore="true" data-1p-ignore="true" style="font-family:monospace" />
+          <label style="margin-top:.6rem">腾讯云 SecretKey</label>
+          <input name="mail_tencent_key" type="password" maxlength="200" value="${escA(s.mail_tencent_key)}" placeholder="xxxxxxxx" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" style="font-family:monospace" />
+          <label style="margin-top:.6rem">SES 地域</label>
+          <input name="mail_tencent_region" maxlength="30" value="${escA(s.mail_tencent_region)}" placeholder="ap-guangzhou" />
+          <small style="color:var(--anzhiyu-secondtext)">在腾讯云控制台「访问管理 → API 密钥管理」获取；发件域名需先在「邮件推送」完成验证。</small>
+        </div>
+        <div class="field" style="border:1px solid var(--anzhiyu-card-border,#e6e2d6);border-radius:8px;padding:12px">
           <label>Resend API Key（<a href="https://resend.com/api-keys" target="_blank" rel="noopener">获取</a>）</label>
           <input name="mail_resend_key" type="password" maxlength="128" value="${escA(s.mail_resend_key)}" placeholder="re_xxxxxxxx" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" style="font-family:monospace" />
+          <small style="color:var(--anzhiyu-secondtext)">仅在服务商选 Resend 时使用。</small>
         </div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
           <div class="field" style="flex:1;min-width:200px">
-            <label>发件邮箱（需在 Resend 验证域名）</label>
+            <label>发件邮箱（需在服务商验证域名）</label>
             <input name="mail_from" maxlength="200" value="${escA(s.mail_from)}" placeholder="notify@nooj.cn" />
           </div>
           <div class="field" style="flex:1;min-width:200px">
@@ -7425,7 +7442,11 @@
           method: "PUT",
           body: {
             mail_enabled: mailForm.mail_enabled.checked,
+            mail_provider: mailForm.mail_provider.value,
             mail_resend_key: mailForm.mail_resend_key.value.trim(),
+            mail_tencent_id: mailForm.mail_tencent_id.value.trim(),
+            mail_tencent_key: mailForm.mail_tencent_key.value.trim(),
+            mail_tencent_region: mailForm.mail_tencent_region.value.trim() || "ap-guangzhou",
             mail_from: mailForm.mail_from.value.trim(),
             mail_admin_to: mailForm.mail_admin_to.value.trim(),
             mail_notify_admin: mailForm.mail_notify_admin.checked,
@@ -13491,7 +13512,7 @@
    * 后台页面由 SSR 强制默认 UI，不加载主题 CSS/JS；从后台硬加载页 SPA 导航到公共页时，
    * 这里负责动态补上主题 CSS 与 theme.js，保证主题视图可用。
    */
-  const THEME_ASSET_VERSION = "20261125nooj103";
+  const THEME_ASSET_VERSION = "20261125nooj104";
   let themeScriptLoading = null;
 
   function syncThemeAssets() {

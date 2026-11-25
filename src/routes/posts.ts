@@ -25,7 +25,7 @@ import {
 } from "../comment-service";
 import { maybeScheduleAiReply } from "../ai-reply";
 import { ensureAvatar } from "../avatar";
-import { handleCommentMailNotifications } from "../mail";
+import { handleCommentMailNotifications, mailConfigFrom } from "../mail";
 
 const app = new Hono<HonoEnv>();
 
@@ -405,14 +405,7 @@ app.post("/:slug/comments", async c => {
   const origin = canonicalOrigin(ps.site_domain, c.req.url, c.req.header("x-forwarded-proto"));
   c.executionCtx.waitUntil(
     handleCommentMailNotifications({
-      mail: {
-        enabled: ps.mail_enabled,
-        apiKey: ps.mail_resend_key,
-        from: ps.mail_from,
-        adminTo: ps.mail_admin_to,
-        notifyAdmin: ps.mail_notify_admin,
-        replyNotify: ps.mail_reply_notify,
-      },
+      mail: mailConfigFrom(ps),
       notifySettings: ps,
       db: c.env.DB,
       site: ps.site_title || "Nooj Log",

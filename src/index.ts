@@ -246,10 +246,10 @@ app.get("/api/settings", async c => {
     indexnow_key: _h7, baidu_push_token: _h8, mail_resend_key: _h9, security_webhook_url: _h10,
     music_api_key: _h11, baidu_translate_appid: _h12, baidu_translate_key: _h13,
     b2_key_id: _h14, b2_app_key: _h15, r2_key_id: _h16, r2_secret_key: _h17, origin_token: _h18,
-    ai_api_key: _h19,
+    ai_api_key: _h19, mail_tencent_id: _h20, mail_tencent_key: _h21,
     ...publicSettings
   } = s;
-  void [_h1, _h2, _h3, _h4, _h5, _h6, _h7, _h8, _h9, _h10, _h11, _h12, _h13, _h14, _h15, _h16, _h17, _h18, _h19];
+  void [_h1, _h2, _h3, _h4, _h5, _h6, _h7, _h8, _h9, _h10, _h11, _h12, _h13, _h14, _h15, _h16, _h17, _h18, _h19, _h20, _h21];
   const res = ok(c, publicSettings);
   res.headers.set("Cache-Control", "public, max-age=60, s-maxage=300");
   return res;
@@ -484,7 +484,7 @@ const HEAD_MARK = "<!--SSR_HEAD-->";
 const I18N_MARK = "<!--I18N_BOOT-->";
 const APP_MARK = '<main id="app" class="page-main"></main>';
 // 主题资源版本号（改动 themes/* 或 app.js 时手动升，用于击穿 CDN/浏览器缓存）
-const THEME_ASSET_VERSION = "20261125nooj103";
+const THEME_ASSET_VERSION = "20261125nooj104";
 
 /**
  * 按站点主题替换 index.html 中的 CSS/JS 资源：

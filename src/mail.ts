@@ -1,32 +1,141 @@
 /**
- * 邮件发送（Resend API）+ 评论通知模板
+ * 邮件发送（Resend / 腾讯云 SES）+ 评论通知模板
  * - Resend：POST https://api.resend.com/emails，Authorization: Bearer <apiKey>
- * - 免费额度 3000 封/月，适合个人博客评论通知；Key 在后台「评论」Tab 配置
+ * - 腾讯云 SES：POST https://ses.tencentcloudapi.com，TC3-HMAC-SHA256 签名，Action=SendEmail
+ *   国内发信 IP，投递 QQ/163 更快；每账号 1000 封免费额度，不限有效期
  * - 发送失败静默返回 false，绝不影响评论主流程
  */
 
-export async function sendMail(opts: {
-  apiKey: string;
+export type MailProvider = "resend" | "tencent";
+
+export interface MailConfig {
+  provider: MailProvider;
+  apiKey: string; // Resend API Key
+  secretId: string; // 腾讯云 SecretId
+  secretKey: string; // 腾讯云 SecretKey
+  region: string; // 腾讯云 SES 地域
   from: string;
   to: string;
-  subject: string;
-  html: string;
-}): Promise<boolean> {
-  const { apiKey, from, to, subject, html } = opts;
-  if (!apiKey || !from || !to) return false;
+}
+
+export async function sendMail(opts: MailConfig & { subject: string; html: string }): Promise<boolean> {
+  const { provider, from, to, subject, html } = opts;
+  if (!from || !to) return false;
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from, to, subject, html }),
-    });
-    return res.ok;
+    if (provider === "tencent") return await sendViaTencent(opts);
+    return await sendViaResend(opts);
   } catch {
     return false;
   }
+}
+
+/** Resend（海外服务，国内投递偏慢） */
+async function sendViaResend(opts: MailConfig & { subject: string; html: string }): Promise<boolean> {
+  const { apiKey, from, to, subject, html } = opts;
+  if (!apiKey) return false;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from, to, subject, html }),
+  });
+  return res.ok;
+}
+
+/* ---------------- 腾讯云 SES（TC3-HMAC-SHA256 签名） ---------------- */
+
+const SES_HOST = "ses.tencentcloudapi.com";
+const SES_SERVICE = "ses";
+const SES_VERSION = "2020-10-02";
+const SES_ACTION = "SendEmail";
+const SES_CONTENT_TYPE = "application/json; charset=utf-8";
+
+function toBase64(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function bufToHex(buf: ArrayBuffer | Uint8Array): string {
+  const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let out = "";
+  for (const b of u8) out += b.toString(16).padStart(2, "0");
+  return out;
+}
+
+async function sha256Hex(s: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return bufToHex(d);
+}
+
+function toArrayBuffer(u: Uint8Array): ArrayBuffer {
+  const ab = new ArrayBuffer(u.byteLength);
+  new Uint8Array(ab).set(u);
+  return ab;
+}
+
+async function hmacSha256(key: Uint8Array, msg: string): Promise<Uint8Array> {
+  const k = await crypto.subtle.importKey("raw", toArrayBuffer(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(msg)));
+}
+
+async function sendViaTencent(opts: MailConfig & { subject: string; html: string }): Promise<boolean> {
+  const { secretId, secretKey, region, from, to, subject, html } = opts;
+  if (!secretId || !secretKey) return false;
+
+  // X-TC-Region 参与签名时并不需要，但请求头必须带上合法地域
+  const payload = JSON.stringify({
+    FromEmailAddress: from,
+    Destination: [to],
+    Subject: subject,
+    // Simple 的 Html 字段需 base64 编码
+    Simple: { Html: toBase64(html) },
+  });
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
+  const signedHeaders = "content-type;host";
+  const canonicalHeaders = `content-type:${SES_CONTENT_TYPE}\nhost:${SES_HOST}\n`;
+  const canonicalRequest = [
+    "POST",
+    "/",
+    "",
+    canonicalHeaders,
+    signedHeaders,
+    await sha256Hex(payload),
+  ].join("\n");
+  const credentialScope = `${date}/${SES_SERVICE}/tc3_request`;
+  const stringToSign = [
+    "TC3-HMAC-SHA256",
+    String(timestamp),
+    credentialScope,
+    await sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const kDate = await hmacSha256(new TextEncoder().encode("TC3" + secretKey), date);
+  const kService = await hmacSha256(kDate, SES_SERVICE);
+  const kSigning = await hmacSha256(kService, "tc3_request");
+  const signature = bufToHex(await hmacSha256(kSigning, stringToSign));
+
+  const res = await fetch(`https://${SES_HOST}`, {
+    method: "POST",
+    headers: {
+      Authorization: `TC3-HMAC-SHA256 Credential=${secretId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+      "Content-Type": SES_CONTENT_TYPE,
+      "X-TC-Action": SES_ACTION,
+      "X-TC-Version": SES_VERSION,
+      "X-TC-Timestamp": String(timestamp),
+      "X-TC-Region": region || "ap-guangzhou",
+    },
+    body: payload,
+  });
+  if (!res.ok) return false;
+  // 腾讯云即使 HTTP 200 也可能在 Response.Error 里返回业务错误
+  const j = (await res.json().catch(() => null)) as { Response?: { Error?: unknown } } | null;
+  return !!(j?.Response && !j.Response.Error);
 }
 
 /** 通用中文邮件 HTML 外壳 */
@@ -98,11 +207,45 @@ export function replyNotifyHtml(opts: {
  */
 export interface CommentMailConfig {
   enabled: boolean;
+  provider: MailProvider;
   apiKey: string;
+  secretId: string;
+  secretKey: string;
+  region: string;
   from: string;
   adminTo: string;
   notifyAdmin: boolean;
   replyNotify: boolean;
+}
+
+/** 从站点设置构造邮件配置（服务商字段归一，避免各路由重复映射） */
+export function mailConfigFrom(
+  s: {
+    mail_enabled: boolean;
+    mail_provider: string;
+    mail_resend_key: string;
+    mail_tencent_id: string;
+    mail_tencent_key: string;
+    mail_tencent_region: string;
+    mail_from: string;
+    mail_admin_to: string;
+    mail_notify_admin: boolean;
+    mail_reply_notify: boolean;
+  },
+  opts?: { notifyAdmin?: boolean }
+): CommentMailConfig {
+  return {
+    enabled: s.mail_enabled,
+    provider: s.mail_provider === "tencent" ? "tencent" : "resend",
+    apiKey: s.mail_resend_key,
+    secretId: s.mail_tencent_id,
+    secretKey: s.mail_tencent_key,
+    region: s.mail_tencent_region,
+    from: s.mail_from,
+    adminTo: s.mail_admin_to,
+    notifyAdmin: opts?.notifyAdmin ?? s.mail_notify_admin,
+    replyNotify: s.mail_reply_notify,
+  };
 }
 
 export interface CommentNotifyOpts {
@@ -129,13 +272,22 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
     } catch { /* 通知失败不影响主流程 */ }
   }
 
-  if (!mail.enabled || !mail.apiKey || !mail.from) return;
+  const credsReady = mail.provider === "tencent" ? !!(mail.secretId && mail.secretKey) : !!mail.apiKey;
+  if (!mail.enabled || !credsReady || !mail.from) return;
+
+  const base = {
+    provider: mail.provider,
+    apiKey: mail.apiKey,
+    secretId: mail.secretId,
+    secretKey: mail.secretKey,
+    region: mail.region,
+    from: mail.from,
+  };
 
   // 1. 管理员新评论通知
   if (mail.notifyAdmin && mail.adminTo && comment.email !== mail.adminTo) {
     await sendMail({
-      apiKey: mail.apiKey,
-      from: mail.from,
+      ...base,
       to: mail.adminTo,
       subject: `新评论 · ${comment.nickname}`,
       html: newCommentAdminHtml({ site, nickname: comment.nickname, content: comment.content, targetTypeLabel, targetLabel, url }),
@@ -151,8 +303,7 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
         .first<{ nickname: string; email: string }>();
       if (root?.email && root.email !== comment.email) {
         await sendMail({
-          apiKey: mail.apiKey,
-          from: mail.from,
+          ...base,
           to: root.email,
           subject: `你的评论收到新回复 · ${site}`,
           html: replyNotifyHtml({ site, replyNickname: comment.nickname, replyContent: comment.content, url }),

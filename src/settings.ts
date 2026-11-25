@@ -142,9 +142,13 @@ export interface SiteSettings {
   ban_threshold: string; // 同 IP 10 分钟高危命中 N 次触发封禁（1-100）
   ban_duration_hours: string; // 封禁时长（小时，1-720）
   // 评论互动（邮件通知 / 防刷）
-  mail_enabled: boolean; // 是否启用邮件通知（需配置 Resend API Key）
+  mail_enabled: boolean; // 是否启用邮件通知
+  mail_provider: string; // 邮件服务商：resend（默认）| tencent（腾讯云 SES，国内更快）
   mail_resend_key: string; // Resend API Key（私密，不公开）
-  mail_from: string; // 发件人邮箱（需在 Resend 验证的域名，如 notify@nooj.cn）
+  mail_tencent_id: string; // 腾讯云 SecretId（私密，不公开）
+  mail_tencent_key: string; // 腾讯云 SecretKey（私密，不公开）
+  mail_tencent_region: string; // 腾讯云 SES 地域（默认 ap-guangzhou）
+  mail_from: string; // 发件人邮箱（需在服务商验证的域名，如 notify@nooj.cn）
   mail_admin_to: string; // 管理员收件邮箱（新评论通知）
   mail_notify_admin: boolean; // 新评论时是否通知管理员
   mail_reply_notify: boolean; // 是否允许评论者订阅「收到回复邮件通知」
@@ -298,7 +302,11 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   ban_threshold: "5",
   ban_duration_hours: "24",
   mail_enabled: false,
+  mail_provider: "resend",
   mail_resend_key: "",
+  mail_tencent_id: "",
+  mail_tencent_key: "",
+  mail_tencent_region: "ap-guangzhou",
   mail_from: "",
   mail_admin_to: "",
   mail_notify_admin: true,
@@ -413,7 +421,11 @@ const STRING_LIMITS: Partial<Record<keyof SiteSettings, number>> = {
   origin_token: 128,
   ban_threshold: 3,
   ban_duration_hours: 4,
+  mail_provider: 10,
   mail_resend_key: 128,
+  mail_tencent_id: 100,
+  mail_tencent_key: 200,
+  mail_tencent_region: 30,
   mail_from: 200,
   mail_admin_to: 200,
   comment_rate_limit: 3,
