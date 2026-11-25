@@ -484,7 +484,7 @@ const HEAD_MARK = "<!--SSR_HEAD-->";
 const I18N_MARK = "<!--I18N_BOOT-->";
 const APP_MARK = '<main id="app" class="page-main"></main>';
 // 主题资源版本号（改动 themes/* 或 app.js 时手动升，用于击穿 CDN/浏览器缓存）
-const THEME_ASSET_VERSION = "20261125nooj105";
+const THEME_ASSET_VERSION = "20261125nooj106";
 
 /**
  * 按站点主题替换 index.html 中的 CSS/JS 资源：

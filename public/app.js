@@ -7299,7 +7299,7 @@
             <span class="toggle"><input type="checkbox" name="mail_enabled" ${s.mail_enabled ? "checked" : ""} /><span></span></span>
             启用评论邮件通知
           </label>
-          <small style="color:var(--anzhiyu-secondtext)">新评论时给管理员发邮件；评论者勾选订阅后，被回复时也会收到邮件。国内收件建议用腾讯云 SES（1000 封免费额度、国内 IP 投递更快）；Resend 免费 3000 封/月但服务器在海外，投递偏慢。</small>
+          <small style="color:var(--anzhiyu-secondtext)">邮件只用于「你的评论收到回复」提醒，新评论通知走 Webhook，不占用邮件额度。国内收件建议用腾讯云 SES（1000 封免费额度、国内 IP 投递更快）；Resend 免费 3000 封/月但服务器在海外，投递偏慢。</small>
         </div>
         <div class="field">
           <label>邮件服务商</label>
@@ -7315,8 +7315,6 @@
           <input name="mail_tencent_key" type="password" maxlength="200" value="${escA(s.mail_tencent_key)}" placeholder="xxxxxxxx" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" style="font-family:monospace" />
           <label style="margin-top:.6rem">SES 地域</label>
           <input name="mail_tencent_region" maxlength="30" value="${escA(s.mail_tencent_region)}" placeholder="ap-guangzhou" />
-          <label style="margin-top:.6rem">新评论通知模板 ID</label>
-          <input name="mail_tencent_template_admin" maxlength="20" value="${escA(s.mail_tencent_template_admin)}" placeholder="例如 12345" />
           <label style="margin-top:.6rem">回复通知模板 ID</label>
           <input name="mail_tencent_template_reply" maxlength="20" value="${escA(s.mail_tencent_template_reply)}" placeholder="例如 12346" />
           <small style="color:var(--anzhiyu-secondtext)">腾讯云国内站默认只能用「模板」发送，请在「邮件推送 → 模板管理」审核通过后把模板 ID 填这里；不填会走自定义内容发送（需专项权限，通常不开放）。</small>
@@ -7332,15 +7330,11 @@
             <input name="mail_from" maxlength="200" value="${escA(s.mail_from)}" placeholder="notify@nooj.cn" />
           </div>
           <div class="field" style="flex:1;min-width:200px">
-            <label>管理员收件邮箱</label>
+            <label>博主邮箱（用于回复去重，不发通知）</label>
             <input name="mail_admin_to" type="email" maxlength="200" value="${escA(s.mail_admin_to)}" placeholder="hi@nooj.cn" />
           </div>
         </div>
         <div style="display:flex;gap:24px;flex-wrap:wrap">
-          <label class="switch-row">
-            <span class="toggle"><input type="checkbox" name="mail_notify_admin" ${s.mail_notify_admin ? "checked" : ""} /><span></span></span>
-            新评论通知管理员
-          </label>
           <label class="switch-row">
             <span class="toggle"><input type="checkbox" name="mail_reply_notify" ${s.mail_reply_notify ? "checked" : ""} /><span></span></span>
             允许评论者订阅回复通知
@@ -7451,11 +7445,9 @@
             mail_tencent_id: mailForm.mail_tencent_id.value.trim(),
             mail_tencent_key: mailForm.mail_tencent_key.value.trim(),
             mail_tencent_region: mailForm.mail_tencent_region.value.trim() || "ap-guangzhou",
-            mail_tencent_template_admin: mailForm.mail_tencent_template_admin.value.trim(),
             mail_tencent_template_reply: mailForm.mail_tencent_template_reply.value.trim(),
             mail_from: mailForm.mail_from.value.trim(),
             mail_admin_to: mailForm.mail_admin_to.value.trim(),
-            mail_notify_admin: mailForm.mail_notify_admin.checked,
             mail_reply_notify: mailForm.mail_reply_notify.checked,
           },
         });
@@ -13518,7 +13510,7 @@
    * 后台页面由 SSR 强制默认 UI，不加载主题 CSS/JS；从后台硬加载页 SPA 导航到公共页时，
    * 这里负责动态补上主题 CSS 与 theme.js，保证主题视图可用。
    */
-  const THEME_ASSET_VERSION = "20261125nooj105";
+  const THEME_ASSET_VERSION = "20261125nooj106";
   let themeScriptLoading = null;
 
   function syncThemeAssets() {

@@ -599,7 +599,7 @@ app.post("/comments/:cid/reply", requireAdmin, async c => {
           targetLabel = (m?.content ?? "").replace(/\s+/g, " ").slice(0, 60) || targetLabel;
         }
         await handleCommentMailNotifications({
-          mail: mailConfigFrom(s, { notifyAdmin: false }), // 博主自己回复，不通知管理员
+          mail: mailConfigFrom(s),
           db: c.env.DB,
           site: s.site_title || "Nooj Log",
           comment: result.comment,

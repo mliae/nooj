@@ -192,25 +192,6 @@ function urlToPath(u: string): string {
   }
 }
 
-/** 管理员新评论通知 */
-export function newCommentAdminHtml(opts: {
-  site: string;
-  nickname: string;
-  content: string;
-  targetTypeLabel: string; // 「说说」或「文章」
-  targetLabel: string; // 文章标题 / 说说摘要
-  url: string;
-}): string {
-  const { site, nickname, content, targetTypeLabel, targetLabel, url } = opts;
-  return mailShell(
-    `💬 新评论通知 · ${site}`,
-    `<p>「${escHtml(nickname)}」在您的${escHtml(targetTypeLabel)}下发表了新评论：</p>
-     <div style="background:#f6f5f0;border-left:3px solid #6b8e6f;border-radius:6px;padding:10px 14px;margin:10px 0;color:#3f4a40">${escHtml(content)}</div>
-     <p style="font-size:13px;color:#888">${escHtml(targetTypeLabel)}：${escHtml(targetLabel)}</p>
-     <p style="margin-top:18px"><a href="${escHtml(url)}" style="background:#6b8e6f;color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px">前往查看</a></p>`
-  );
-}
-
 /** 评论被回复通知（订阅者） */
 export function replyNotifyHtml(opts: {
   site: string;
@@ -230,9 +211,9 @@ export function replyNotifyHtml(opts: {
 }
 
 /**
- * 评论创建后的邮件通知编排（异步执行，失败静默）：
- * 1. 新评论通知管理员（mail_notify_admin && mail_admin_to）
- * 2. 若评论者订阅且该评论是楼中楼回复，通知被回复的根评论者（mail_reply_notify）
+ * 评论创建后的通知编排（异步执行，失败静默）：
+ * 1. 新评论 → 只走 Webhook 推给站长（不消耗邮件额度）
+ * 2. 楼中楼回复 → 给被回复的根评论者发邮件（mail_reply_notify）
  */
 export interface CommentMailConfig {
   enabled: boolean;
@@ -241,11 +222,8 @@ export interface CommentMailConfig {
   secretId: string;
   secretKey: string;
   region: string;
-  templateAdmin: string; // 腾讯云「新评论通知」模板 ID
   templateReply: string; // 腾讯云「回复通知」模板 ID
   from: string;
-  adminTo: string;
-  notifyAdmin: boolean;
   replyNotify: boolean;
 }
 
@@ -258,14 +236,10 @@ export function mailConfigFrom(
     mail_tencent_id: string;
     mail_tencent_key: string;
     mail_tencent_region: string;
-    mail_tencent_template_admin: string;
     mail_tencent_template_reply: string;
     mail_from: string;
-    mail_admin_to: string;
-    mail_notify_admin: boolean;
     mail_reply_notify: boolean;
-  },
-  opts?: { notifyAdmin?: boolean }
+  }
 ): CommentMailConfig {
   return {
     enabled: s.mail_enabled,
@@ -274,11 +248,8 @@ export function mailConfigFrom(
     secretId: s.mail_tencent_id,
     secretKey: s.mail_tencent_key,
     region: s.mail_tencent_region,
-    templateAdmin: s.mail_tencent_template_admin,
     templateReply: s.mail_tencent_template_reply,
     from: s.mail_from,
-    adminTo: s.mail_admin_to,
-    notifyAdmin: opts?.notifyAdmin ?? s.mail_notify_admin,
     replyNotify: s.mail_reply_notify,
   };
 }
@@ -319,23 +290,7 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
     from: mail.from,
   };
 
-  // 1. 管理员新评论通知
-  if (mail.notifyAdmin && mail.adminTo && comment.email !== mail.adminTo) {
-    await sendMail({
-      ...base,
-      to: mail.adminTo,
-      subject: `新评论 · ${comment.nickname}`,
-      html: newCommentAdminHtml({ site, nickname: comment.nickname, content: comment.content, targetTypeLabel, targetLabel, url }),
-      templateId: mail.templateAdmin,
-      templateData: {
-        site,
-        nickname: comment.nickname,
-        // 模板只保留 site/nickname/content/path 四个变量，目标信息并入正文
-        content: `${targetTypeLabel}「${targetLabel}」：${comment.content}`.slice(0, 300),
-        path: urlToPath(url),
-      },
-    });
-  }
+  // 1. 管理员新评论通知走 Webhook（见上方），此处不再发邮件，节省额度
 
   // 2. 回复订阅通知：仅楼中楼回复（parent_id>0），且回复者不是被回复者本人
   if (mail.replyNotify && comment.parent_id > 0) {
