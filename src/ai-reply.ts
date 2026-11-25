@@ -149,12 +149,12 @@ async function generateAndSave(
     const genOpts = { maxTokens: 1024, temperature: 0.7, thinking: false } as const;
     const messages: ChatMessage[] = [{ role: "user", content: prompt }];
     const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-    // 最多 3 次尝试：失败或清洗后为空都重试（推理模型偶发返回空 content / 供应商 429 限流），
-    // 第 1 次用主模型，第 2 次用回退模型，第 3 次再用主模型；每次重试前短暂退避
+    // 最多 5 次尝试：失败或清洗后为空都重试（推理模型偶发返回空 content / 供应商 429 限流），
+    // 第 1 次用主模型，第 2 次用回退模型，之后交替；每次重试前退避，扛过短暂限流
     let reply = "";
-    for (let attempt = 0; attempt < 3 && !reply; attempt++) {
-      if (attempt > 0) await sleep(1500);
-      const useModel = attempt === 1 ? fallbackModel : model;
+    for (let attempt = 0; attempt < 5 && !reply; attempt++) {
+      if (attempt > 0) await sleep(2500);
+      const useModel = attempt % 2 === 1 ? fallbackModel : model;
       let raw = "";
       try {
         raw = await generateText(ai, messages, { ...genOpts, model: useModel });
