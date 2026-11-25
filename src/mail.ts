@@ -3,6 +3,7 @@
  * - Resend：POST https://api.resend.com/emails，Authorization: Bearer <apiKey>
  * - 腾讯云 SES：POST https://ses.tencentcloudapi.com，TC3-HMAC-SHA256 签名，Action=SendEmail
  *   国内发信 IP，投递 QQ/163 更快；每账号 1000 封免费额度，不限有效期
+ *   国内站默认只允许「模板发送」：配置模板 ID 后走 Template，未配置则尝试自定义内容（需专项权限）
  * - 发送失败静默返回 false，绝不影响评论主流程
  */
 
@@ -16,6 +17,8 @@ export interface MailConfig {
   region: string; // 腾讯云 SES 地域
   from: string;
   to: string;
+  templateId?: string; // 腾讯云模板 ID（配置后优先用模板发送）
+  templateData?: Record<string, string>; // 模板变量
 }
 
 export async function sendMail(opts: MailConfig & { subject: string; html: string }): Promise<boolean> {
@@ -83,17 +86,23 @@ async function hmacSha256(key: Uint8Array, msg: string): Promise<Uint8Array> {
 }
 
 async function sendViaTencent(opts: MailConfig & { subject: string; html: string }): Promise<boolean> {
-  const { secretId, secretKey, region, from, to, subject, html } = opts;
+  const { secretId, secretKey, region, from, to, subject, html, templateId, templateData } = opts;
   if (!secretId || !secretKey) return false;
 
-  // X-TC-Region 参与签名时并不需要，但请求头必须带上合法地域
-  const payload = JSON.stringify({
+  // 有模板 ID 走模板发送（国内站默认唯一可用方式）；否则退回自定义内容
+  const payloadObj: Record<string, unknown> = {
     FromEmailAddress: from,
     Destination: [to],
     Subject: subject,
+  };
+  const tid = Number(templateId);
+  if (templateId && Number.isFinite(tid) && tid > 0) {
+    payloadObj.Template = { TemplateID: tid, TemplateData: JSON.stringify(templateData || {}) };
+  } else {
     // Simple 的 Html 字段需 base64 编码
-    Simple: { Html: toBase64(html) },
-  });
+    payloadObj.Simple = { Html: toBase64(html) };
+  }
+  const payload = JSON.stringify(payloadObj);
 
   const timestamp = Math.floor(Date.now() / 1000);
   const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
@@ -219,6 +228,8 @@ export interface CommentMailConfig {
   secretId: string;
   secretKey: string;
   region: string;
+  templateAdmin: string; // 腾讯云「新评论通知」模板 ID
+  templateReply: string; // 腾讯云「回复通知」模板 ID
   from: string;
   adminTo: string;
   notifyAdmin: boolean;
@@ -234,6 +245,8 @@ export function mailConfigFrom(
     mail_tencent_id: string;
     mail_tencent_key: string;
     mail_tencent_region: string;
+    mail_tencent_template_admin: string;
+    mail_tencent_template_reply: string;
     mail_from: string;
     mail_admin_to: string;
     mail_notify_admin: boolean;
@@ -248,6 +261,8 @@ export function mailConfigFrom(
     secretId: s.mail_tencent_id,
     secretKey: s.mail_tencent_key,
     region: s.mail_tencent_region,
+    templateAdmin: s.mail_tencent_template_admin,
+    templateReply: s.mail_tencent_template_reply,
     from: s.mail_from,
     adminTo: s.mail_admin_to,
     notifyAdmin: opts?.notifyAdmin ?? s.mail_notify_admin,
@@ -298,6 +313,14 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
       to: mail.adminTo,
       subject: `新评论 · ${comment.nickname}`,
       html: newCommentAdminHtml({ site, nickname: comment.nickname, content: comment.content, targetTypeLabel, targetLabel, url }),
+      templateId: mail.templateAdmin,
+      templateData: {
+        site,
+        nickname: comment.nickname,
+        content: comment.content.slice(0, 300),
+        target: `${targetTypeLabel}「${targetLabel}」`,
+        url,
+      },
     });
   }
 
@@ -314,6 +337,13 @@ export async function handleCommentMailNotifications(opts: CommentNotifyOpts): P
           to: root.email,
           subject: `你的评论收到新回复 · ${site}`,
           html: replyNotifyHtml({ site, replyNickname: comment.nickname, replyContent: comment.content, url }),
+          templateId: mail.templateReply,
+          templateData: {
+            site,
+            nickname: comment.nickname,
+            content: comment.content.slice(0, 300),
+            url,
+          },
         });
       }
     } catch {

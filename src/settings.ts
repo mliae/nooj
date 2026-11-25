@@ -148,6 +148,8 @@ export interface SiteSettings {
   mail_tencent_id: string; // 腾讯云 SecretId（私密，不公开）
   mail_tencent_key: string; // 腾讯云 SecretKey（私密，不公开）
   mail_tencent_region: string; // 腾讯云 SES 地域（默认 ap-guangzhou）
+  mail_tencent_template_admin: string; // 腾讯云「新评论通知」模板 ID（未填则尝试自定义内容发送）
+  mail_tencent_template_reply: string; // 腾讯云「回复通知」模板 ID
   mail_from: string; // 发件人邮箱（需在服务商验证的域名，如 notify@nooj.cn）
   mail_admin_to: string; // 管理员收件邮箱（新评论通知）
   mail_notify_admin: boolean; // 新评论时是否通知管理员
@@ -307,6 +309,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   mail_tencent_id: "",
   mail_tencent_key: "",
   mail_tencent_region: "ap-guangzhou",
+  mail_tencent_template_admin: "",
+  mail_tencent_template_reply: "",
   mail_from: "",
   mail_admin_to: "",
   mail_notify_admin: true,
@@ -426,6 +430,8 @@ const STRING_LIMITS: Partial<Record<keyof SiteSettings, number>> = {
   mail_tencent_id: 100,
   mail_tencent_key: 200,
   mail_tencent_region: 30,
+  mail_tencent_template_admin: 20,
+  mail_tencent_template_reply: 20,
   mail_from: 200,
   mail_admin_to: 200,
   comment_rate_limit: 3,
